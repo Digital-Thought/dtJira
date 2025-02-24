@@ -1,3 +1,7 @@
+import logging
+
+from dtJira._issues import Issues
+
 
 class Project:
 
@@ -16,6 +20,9 @@ class Project:
 
         if not skip_load:
             self._load_project_settings()
+
+    def issues(self) -> Issues:
+        return Issues(self, self.client)
 
     def _load_project_settings(self):
         self.issue_type_schemes = self.client.issue_types().get_all_issue_type_schemes_for_project(self)
@@ -188,6 +195,7 @@ class Projects:
         return Project(resp.json(), self.client)
 
     def apply_template(self, project: Project, template: dict):
+        logging.info(f'Applying Template "{template.get('name')}" to {project.key}')
         project.assign_fields(template.get('fields'))
         workflow_scheme = self.client.workflows().get_workflow_scheme_for_project(project)
 
@@ -200,15 +208,18 @@ class Projects:
                 break
 
         for issue_type_def in template.get('issue_types'):
+            logging.info(f'Applying Issue Type "{issue_type_def.get("name")}" to {project.key}')
             issue_type = self.client.issue_types().create(f"{project.key}: {issue_type_def['name']}", issue_type_def['description'],
                                                               issue_type_def['subtask'])
             project.issue_types.append(issue_type)
             target_issue_type_scheme.add_issue_type([issue_type])
 
         for screen_def in template.get('screens', []):
+            logging.info(f'Applying Screen Def "{screen_def.get("name")}" to {project.key}')
             screen = self.client.screens().create(f"{project.key}: {screen_def['name']}", screen_def['description'])
             project.screens.append(screen)
 
+        logging.info(f'Applying Screen Tabs to {project.key}')
         for screen_tab_def in template.get('screen_tabs', []):
             for screen in project.screens:
                 if screen.name == f"{project.key}: {screen_tab_def['screen']}":
@@ -225,6 +236,7 @@ class Projects:
                     project.screen_tabs[screen.id].append(tab)
 
         for screen_schemes_def in template.get('screen_schemes', []):
+            logging.info(f'Applying Screen Scheme Def "{screen_schemes_def['name']}" to {project.key}')
             name = f"{project.key}: {screen_schemes_def['name']}"
             resp = self.client.screens().create_screen_scheme(name, screen_schemes_def['description'],
                                                               default=project.get_screen(f"{project.key}: {screen_schemes_def['screens']['default']}").id,
@@ -234,17 +246,19 @@ class Projects:
             project.screen_schemes.append(resp)
 
         for issue_type_screen_scheme_def in template.get('issue_type_screen_schemes', []):
+            logging.info(f'Applying Screen/Issue Scheme to {project.key}')
             issue_type_screen_scheme = project.issue_type_screen_schemes[0]
             for mapping_def in issue_type_screen_scheme_def['mappings']:
                 issue_type_screen_scheme.add_mapping(project.get_issue_type(f"{project.key}: {mapping_def['issue_type']}"),
                                                      project.get_screen_scheme(f"{project.key}: {mapping_def['screen_scheme']}"))
 
         for workflow_def in template.get('workflows', []):
+            logging.info(f'Applying Workflow "{workflow_def['name']}" to {project.key}')
             workflow_name = f"{project.key}: {workflow_def['name']}"
             workflow = self.client.workflows().create(workflow_name, workflow_def['description'], workflow_def, project)
             project.workflows.append(workflow)
 
-
+        logging.info(f'Applying Workflow Scheme to {project.key}')
         for workflow_scheme_def in template.get('workflow_schemes', []):
             for mapping in workflow_scheme_def['issueTypeMappings']:
                 workflow_scheme.add_workflow_issue_type(project.get_issue_type(f"{project.key}: {mapping['issue_type']}"),
@@ -266,9 +280,11 @@ class Projects:
         resp = self.client.post(path='/rest/api/3/project', data=payload)
         resp.raise_for_status()
         project = Project(resp.json(), self.client)
+        logging.info(f'Applying Template "{template.get('name')}" to {project.key}')
         project.assign_fields(template.get('fields'))
 
         for issue_type_def in template.get('issue_types'):
+            logging.info(f'Applying Issue Type "{issue_type_def.get("name")}" to {project.key}')
             issue_type = self.client.issue_types().create(f"{project.key}: {issue_type_def['name']}", issue_type_def['description'],
                                                               issue_type_def['subtask'])
             project.issue_types.append(issue_type)
@@ -286,9 +302,11 @@ class Projects:
             project.assign_issue_type_scheme(issue_type_scheme)
 
         for screen_def in template.get('screens', []):
+            logging.info(f'Applying Screen Def "{screen_def.get("name")}" to {project.key}')
             screen = self.client.screens().create(f"{project.key}: {screen_def['name']}", screen_def['description'])
             project.screens.append(screen)
 
+        logging.info(f'Applying Screen Tabs to {project.key}')
         for screen_tab_def in template.get('screen_tabs', []):
             for screen in project.screens:
                 if screen.name == f"{project.key}: {screen_tab_def['screen']}":
@@ -296,7 +314,8 @@ class Projects:
                     for field in project.project_fields:
                         for field_name in screen_tab_def['fields']:
                             if field.name == field_name:
-                                field_ids.append(field.id)
+                                if field.id not in field_ids:
+                                    field_ids.append(field.id)
                                 break
 
                     tab = screen.create_tab(screen_tab_def['name'], field_ids)
@@ -305,6 +324,7 @@ class Projects:
                     project.screen_tabs[screen.id].append(tab)
 
         for screen_schemes_def in template.get('screen_schemes', []):
+            logging.info(f'Applying Screen Scheme Def "{screen_schemes_def['name']}" to {project.key}')
             name = f"{project.key}: {screen_schemes_def['name']}"
             resp = self.client.screens().create_screen_scheme(name, screen_schemes_def['description'],
                                                               default=project.get_screen(f"{project.key}: {screen_schemes_def['screens']['default']}").id,
@@ -314,6 +334,7 @@ class Projects:
             project.screen_schemes.append(resp)
 
         for issue_type_screen_scheme_def in template.get('issue_type_screen_schemes', []):
+            logging.info(f'Applying Screen/Issue Scheme to {project.key}')
             issue_type_screen_scheme_name = f"{project.key}: {issue_type_screen_scheme_def['name']}"
             mappings = []
             for mapping_def in issue_type_screen_scheme_def['mappings']:
@@ -330,10 +351,12 @@ class Projects:
             project.assign_issue_type_screen_scheme(i)
 
         for workflow_def in template.get('workflows', []):
+            logging.info(f'Applying Workflow "{workflow_def['name']}" to {project.key}')
             workflow_name = f"{project.key}: {workflow_def['name']}"
             workflow = self.client.workflows().create(workflow_name, workflow_def['description'], workflow_def, project)
             project.workflows.append(workflow)
 
+        logging.info(f'Applying Workflow Scheme to {project.key}')
         for workflow_scheme_def in template.get('workflow_schemes', []):
             payload = {
                 "name": f"{project.key}: {workflow_scheme_def['name']}",

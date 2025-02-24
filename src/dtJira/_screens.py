@@ -1,3 +1,4 @@
+import logging
 
 class Screen:
 
@@ -33,9 +34,12 @@ class Screen:
             payload = {
                 'fieldId': field,
             }
-            resp = self.client.post(path=f'/rest/api/3/screens/{self.id}/tabs/{tab_detail["id"]}/fields', data=payload)
-            resp.raise_for_status()
-
+            try:
+                resp = self.client.post(path=f'/rest/api/3/screens/{self.id}/tabs/{tab_detail["id"]}/fields', data=payload)
+                resp.raise_for_status()
+            except Exception as e:
+                logging.exception(e)
+                raise e
         return tab_detail
 
 class ScreenScheme:
