@@ -2,9 +2,63 @@ import logging
 import re
 
 class Issue:
-    def __init__(self, detail, client):
+    def __init__(self, detail, client, issue_type, get_field):
         self.detail = detail
         self.client = client
+        self.issue_type = issue_type
+        self.get_field = get_field
+
+
+    def _format_doc(self, doc):
+        response = ''
+        if doc:
+            for c in doc:
+                if c['type'] == 'text':
+                    response += c['text']
+                elif c['type'] == 'paragraph':
+                    response += f'\n{self._format_doc(c["content"])}\n'
+                elif c['type'] == 'heading':
+                    response += f'\n{c["text"]}\n'
+                elif c['type'] == 'code':
+                    response += f'\n{c["text"]}\n'
+                else:
+                    response += f'\n{c["text"]}\n'
+        return response
+
+    def _format_value(self, value):
+        if isinstance(value, dict):
+            if value.get('type', '') == 'doc':
+                return self._format_doc(value.get('content')).strip()
+        else:
+            return value
+
+    def get_value(self, field_name):
+        field = self.get_field(self.issue_type, field_name)
+        return self._format_value(self.detail['fields'][field['fieldId']])
+
+    @property
+    def creator(self):
+        return self.detail['fields']['creator']
+
+    @property
+    def description(self):
+        return self._format_value(self.detail['fields']['description'])
+
+    @property
+    def subtasks(self):
+        return self.detail['fields']['subtasks']
+
+    @property
+    def reporter(self):
+        return self.detail['fields']['reporter']
+
+    @property
+    def summary(self):
+        return self.detail['fields']['summary']
+
+    @property
+    def assignee(self):
+        return self.detail['fields']['assignee']
 
     @property
     def status(self):
@@ -13,6 +67,10 @@ class Issue:
     @property
     def key(self):
         return self.detail['key']
+
+    @property
+    def id(self):
+        return self.detail['id']
 
 class Issues:
 
@@ -131,6 +189,24 @@ class Issues:
                 return field
         return None
 
+    def get_issues_updated_last_days(self, issue_type, days):
+        relevant_issue_type = None
+        for it in self.issue_types:
+            if it['name'].endswith(issue_type):
+                relevant_issue_type = it
+
+        if relevant_issue_type is None:
+            logging.error(f'Could not find issue type "{issue_type}"')
+            return []
+
+        jql = f'project="{self.project.key}" AND issuetype="{relevant_issue_type['name']}" AND updated >= "-{days}d"'
+        resp = self.client.get(path=f'/rest/api/3/search?jql={jql}')
+        resp.raise_for_status()
+        results = []
+        for issue in resp.json()['issues']:
+            results.append(Issue(issue, self.client, relevant_issue_type, self.get_field))
+        return results
+
     def create_issue(self, issue_type, summary, description='', fields={}):
         payload = {
             "fields": {
@@ -157,4 +233,4 @@ class Issues:
         resp.raise_for_status()
         resp = self.client.get(path=f'/rest/api/3/issue/{resp.json()['key']}')
         resp.raise_for_status()
-        return Issue(resp.json(), self.client)
+        return Issue(resp.json(), self.client, issue_type, self.get_field)
