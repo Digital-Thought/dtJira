@@ -6,6 +6,13 @@ class Issue:
         self.detail = detail
         self.client = client
 
+    @property
+    def status(self):
+        return self.detail['fields']['status']['name']
+
+    @property
+    def key(self):
+        return self.detail['key']
 
 class Issues:
 
@@ -147,5 +154,7 @@ class Issues:
                     logging.error(f'Could not find field key for "{field}"')
 
         resp = self.client.post(path=f'/rest/api/3/issue', data=payload)
+        resp.raise_for_status()
+        resp = self.client.get(path=f'/rest/api/3/issue/{resp.json()['key']}')
         resp.raise_for_status()
         return Issue(resp.json(), self.client)
