@@ -26,6 +26,11 @@ class Issue:
         return response
 
     def _format_value(self, value):
+        if isinstance(value, list):
+            values = []
+            for v in value:
+                values.append(v['value'])
+            return values
         if isinstance(value, dict):
             if value.get('type', '') == 'doc':
                 return self._format_doc(value.get('content')).strip()
