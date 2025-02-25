@@ -29,6 +29,12 @@ class Issue:
         if isinstance(value, dict):
             if value.get('type', '') == 'doc':
                 return self._format_doc(value.get('content')).strip()
+            if 'value' in value:
+                v = value['value']
+                if v in ['false', 'true']:
+                    return v == 'true'
+                else:
+                    return v
         else:
             return value
 
@@ -207,7 +213,7 @@ class Issues:
             results.append(Issue(issue, self.client, relevant_issue_type, self.get_field))
         return results
 
-    def create_issue(self, issue_type, summary, description='', fields={}):
+    def create_issue(self, issue_type, summary, description='', fields={}, parent_issue: Issue=None):
         payload = {
             "fields": {
                 "project": {
@@ -220,6 +226,9 @@ class Issues:
                 }
             }
         }
+
+        if parent_issue:
+            payload['fields']['parent'] = {'key': parent_issue.key}
 
         for field in fields:
             if fields[field]:
