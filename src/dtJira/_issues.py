@@ -161,6 +161,8 @@ class Issues:
                 return field.get('key'), value
             elif custom.endswith('textarea'):
                 return field.get('key'), self.format_textarea_resp(value)
+            else:
+                return field.get('key'), value
         elif field_scheme == 'array':
             array_values = []
             if isinstance(value, dict):
@@ -236,12 +238,16 @@ class Issues:
             payload['fields']['parent'] = {'key': parent_issue.key}
 
         for field in fields:
-            if fields[field]:
-                field_key, val = self.format_field_data(issue_type, field, fields[field])
-                if field_key:
-                    payload['fields'][field_key] = val
-                else:
-                    logging.error(f'Could not find field key for "{field}"')
+            try:
+                if fields[field]:
+                    field_key, val = self.format_field_data(issue_type, field, fields[field])
+                    if field_key:
+                        payload['fields'][field_key] = val
+                    else:
+                        logging.error(f'Could not find field key for "{field}"')
+            except Exception as e:
+                logging.exception(f'Field {field}: {e}')
+                continue
 
         resp = self.client.post(path=f'/rest/api/3/issue', data=payload)
         resp.raise_for_status()
