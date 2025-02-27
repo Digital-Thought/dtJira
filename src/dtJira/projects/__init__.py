@@ -1,11 +1,59 @@
 import logging
 
-from dtJira._issues import Issues
+from dtJira.issues import Issues
 
 
 class Project:
+    """
+    Represents a Project and provides functionalities for managing its settings,
+    fields, issue types, screen schemes, workflows, and various related entities.
 
+    This class interacts with a project's related configurations through a client
+    interface. It can load project settings, manage screen schemes, issue type
+    schemes, and workflow schemes, among others. It is designed for use in systems
+    where project configurations need to be programmatically accessed or modified.
+
+    :ivar project_detail: Dictionary containing raw details about the project.
+    :type project_detail: dict
+    :ivar client: Client interface for making API calls.
+    :type client: object
+    :ivar project_fields: List of fields associated with the project.
+    :type project_fields: list
+    :ivar issue_types: List of issue types defined for the project.
+    :type issue_types: list
+    :ivar issue_type_schemes: List of issue type schemes applied to the project.
+    :type issue_type_schemes: list
+    :ivar issue_type_scheme_mappings: Dictionary mapping issue type schemes to their
+        respective settings.
+    :type issue_type_scheme_mappings: dict
+    :ivar screens: List of screens associated with the project.
+    :type screens: list
+    :ivar screen_tabs: Dictionary mapping screen IDs to their respective tabs.
+    :type screen_tabs: dict
+    :ivar screen_schemes: List of screen schemes configured for the project.
+    :type screen_schemes: list
+    :ivar issue_type_screen_schemes: List of issue type screen schemes assigned to
+        the project.
+    :type issue_type_screen_schemes: list
+    :ivar workflows: List of workflows associated with the project.
+    :type workflows: list
+    """
     def __init__(self, project_detail, client, skip_load=False):
+        """
+        Initializes a new instance of the class that manages project settings and
+        metadata. It sets up various project-related attributes and optionally
+        loads project configuration settings.
+
+        :param project_detail: Contains detailed project information used for
+            initializing the project settings.
+        :type project_detail: Any
+        :param client: The client interface or API client used for interacting
+            with project-related data.
+        :type client: Any
+        :param skip_load: Flag that determines whether to skip loading project
+            configuration settings during initialization. Default is False.
+        :type skip_load: bool
+        """
         self.project_detail = project_detail
         self.client = client
         self.project_fields = []
@@ -22,9 +70,35 @@ class Project:
             self._load_project_settings()
 
     def issues(self) -> Issues:
+        """
+        Returns an instance of the Issues class, which provides methods for interacting
+        with issue-related data. This method initializes the Issues class with the
+        current instance and client.
+
+        :return: An instance of the Issues class.
+        :rtype: Issues
+        """
         return Issues(self, self.client)
 
     def _load_project_settings(self):
+        """
+        Loads the project settings and initializes various attributes with project-related
+        information retrieved using API calls. This function prepares the project by
+        fetching issue type schemes, screen schemes, screen tabs, fields, and screen
+        mappings, and organizes them into the respective data structures.
+
+        The process includes:
+        - Retrieving and associating issue type schemes and issue type screen schemes.
+        - Mapping the screen schemes to the corresponding screen data.
+        - Populating the list of issue types and screen schemes for the project.
+        - Gathering screen tab information and associated fields for each screen.
+        - Aggregating and storing all relevant field data in the project fields.
+
+        This ensures that the project attributes contain the most up-to-date and detailed
+        information about the project's issue and screen configurations.
+
+        :param self: Reference to the current instance of the class.
+        """
         self.issue_type_schemes = self.client.issue_types().get_all_issue_type_schemes_for_project(self)
         self.issue_type_screen_schemes = self.client.issue_types().get_issue_type_screen_schemes(self)
         for i in self.issue_type_screen_schemes:
@@ -71,45 +145,156 @@ class Project:
 
     @property
     def id(self):
+        """
+        Retrieves the unique identifier for a project.
+
+        This property fetches the 'id' value from the project detail dictionary.
+        It provides a read-only way to access the project's identifier in the
+        internal data structure.
+
+        :rtype:
+            Any
+        :returns:
+            The unique identifier of the project obtained from the
+            `project_detail` dictionary.
+        """
         return self.project_detail['id']
 
     @property
     def key(self):
+        """
+        Represents a property to retrieve the 'key' from the project details.
+
+        The 'key' is obtained dynamically from the project's details dictionary,
+        where it is identified under the 'key' field. This property allows
+        access to the value without exposing raw dictionary access, ensuring
+        encapsulation.
+
+        :rtype: str
+        :return: The value of the 'key' field from the project details.
+        """
         return self.project_detail['key']
 
     @property
     def name(self):
+        """
+        This property retrieves the 'name' field from the 'project_detail' dictionary.
+        It is used to access the project name information stored in the data structure.
+
+        :return: The value associated with the 'name' key in the 'project_detail' dictionary
+        :rtype: str
+        """
         return self.project_detail['name']
 
     @property
     def project_type_key(self):
+        """
+        Retrieves the project type key from the project details.
+
+        The project type key provides essential categorization or type
+        information about the project, which is extracted from the
+        'project_detail' dictionary.
+
+        :return: The project type key as a string.
+        :rtype: str
+        """
         return self.project_detail['projectTypeKey']
 
     @property
     def simplified(self):
+        """
+        A property that provides the 'simplified' value from the `project_detail` dictionary.
+
+        :return: The value associated with the key 'simplified'
+                 in the `project_detail` dictionary.
+        :rtype: Any
+        """
         return self.project_detail['simplified']
 
     @property
     def style(self):
+        """
+        Provides a property to access the style attribute of `project_detail`.
+
+        This property retrieves the value of the 'style' key from the
+        `project_detail` dictionary.
+
+        :return: The value corresponding to the 'style' key in `project_detail`.
+        :rtype: Any
+        """
         return self.project_detail['style']
 
     @property
     def is_private(self):
+        """
+        Checks whether the project is private or not.
+
+        This property retrieves the value of `isPrivate` from the
+        `project_detail` dictionary to determine the privacy status
+        of the project. If the `isPrivate` key in the dictionary is
+        set to `True`, the project is considered private.
+
+        :raises KeyError: If the `isPrivate` key is not present in the
+          `project_detail` dictionary.
+        :return: Returns ``True`` if the project is private, otherwise
+          ``False``.
+        :rtype: bool
+        """
         return self.project_detail['isPrivate']
 
     @property
     def properties(self):
+        """
+        Provides access to the 'properties' attribute of the 'project_detail' dictionary
+        contained within the class. This retrieves the value associated with the
+        'properties' key.
+
+        :return: The value of the 'properties' key in the 'project_detail' dictionary.
+        :rtype: Any
+        """
         return self.project_detail['properties']
 
     @property
     def entity_id(self):
+        """
+        Provides a read-only property to access the 'entityId' of the object.
+
+        This property retrieves the 'entityId' value from the 'project_detail'
+        attribute. It is useful for cases where the entity's unique identifier
+        is required without directly accessing the underlying data structure.
+
+        :return: The 'entityId' value from the 'project_detail' dictionary.
+        :rtype: Any
+        """
         return self.project_detail['entityId']
 
     @property
     def uuid(self):
+        """
+        Provides access to the unique identifier of the project in the form of a property. The `uuid`
+        property retrieves the 'isPrivate' value from the project's details dictionary.
+
+        :return: Returns the value of the 'isPrivate' key from the `project_detail` attribute.
+        :rtype: bool
+        """
         return self.project_detail['isPrivate']
 
     def assign_fields(self, field_defs: list, auto_create: bool = True):
+        """
+        Assign custom fields to the current project based on provided definitions. If a custom field
+        does not exist and the ``auto_create`` parameter is ``True``, the method attempts to create
+        the missing field automatically. Successfully fetched or created fields are stored in the
+        ``project_fields`` attribute.
+
+        :param field_defs: A list of dictionaries, where each dictionary contains the specifications
+            of a custom field, including its ``name``, ``type``, ``description``, and optional
+            ``options``.
+        :type field_defs: list
+        :param auto_create: A boolean indicating whether missing fields should be created
+            automatically if they do not exist within the client repository. Defaults to ``True``.
+        :type auto_create: bool
+        :return: None
+        """
         for field_def in field_defs:
             field = self.client.fields().get_custom_field(field_def.get('name'), field_def.get('description', ''),
                                                           field_def.get('type'))
@@ -122,6 +307,19 @@ class Project:
 
 
     def assign_issue_type_screen_scheme(self, issue_type_screen_scheme):
+        """
+        Assigns an issue type screen scheme to the current project. This operation connects
+        an issue type screen scheme, which defines the association between issue types
+        and screen schemes, to the project. The `issue_type_screen_scheme` parameter
+        is required to configure the appropriate scheme for the project. Upon successful
+        assignment, the issue type screen scheme is added to the list of screen schemes
+        associated with the project.
+
+        :param issue_type_screen_scheme: The issue type screen scheme to assign. Must be
+            provided as an object with an `id` attribute.
+        :type issue_type_screen_scheme: Any
+        :return: None
+        """
         payload = {
             "issueTypeScreenSchemeId": issue_type_screen_scheme.id,
             "projectId": self.id
@@ -131,6 +329,19 @@ class Project:
         self.issue_type_screen_schemes.append(issue_type_screen_scheme)
 
     def assign_issue_type_scheme(self, issue_type_scheme):
+        """
+        Assigns an issue type scheme to the current project.
+
+        This method associates the specified issue type scheme with the project using
+        the assigned project ID and issue type scheme ID. The association is made by
+        sending a PUT request to the corresponding API endpoint. If the operation is
+        successful, the issue type scheme is appended to the local list of associated
+        schemes.
+
+        :param issue_type_scheme: The issue type scheme to be assigned to the project.
+        :type issue_type_scheme: IssueTypeScheme
+        :return: None
+        """
         payload = {
             "issueTypeSchemeId": issue_type_scheme.id,
             "projectId": self.id
@@ -140,6 +351,21 @@ class Project:
         self.issue_type_schemes.append(issue_type_scheme)
 
     def assign_workflow_scheme(self, workflow_scheme):
+        """
+        Assigns a workflow scheme to a project by making a PUT request to the
+        Jira REST API endpoint for workflow scheme assignment. This method updates
+        the association of the specified workflow scheme with the corresponding
+        project represented by the current object.
+
+        :param workflow_scheme: The workflow scheme to be assigned to the project.
+            Must be an object that contains an `id` attribute representing the ID
+            of the workflow scheme in Jira.
+        :type workflow_scheme: object
+        :return: None. This method does not return any value.
+        :rtype: NoneType
+        :raises HTTPError: If the API call fails, this method raises an HTTPError
+            exception for failed HTTP requests or unexpected responses.
+        """
         payload = {
             "workflowSchemeId": workflow_scheme.id,
             "projectId": self.id
@@ -149,33 +375,109 @@ class Project:
         resp.raise_for_status()
 
     def get_screen(self, name):
+        """
+        Retrieves a screen object by its name from the list of available screens.
+        If no screen is found with the specified name, returns None.
+
+        :param name: The name of the screen to search for.
+        :type name: str
+        :return: The screen object with the specified name, or None if not found.
+        :rtype: Optional[Screen]
+        """
         for screen in self.screens:
             if screen.name == name:
                 return screen
         return None
 
     def get_issue_type(self, name):
+        """
+        Retrieves an issue type by its name from the list of issue types.
+
+        This function iterates through a list of issue types and attempts to find one
+        that matches the specified name. If a match is found, the corresponding issue
+        type is returned. If no match is found, None is returned.
+
+        :param name: The name of the issue type to search for.
+        :type name: str
+        :return: An issue type object that matches the specified name, or None if no
+            match is found.
+        :rtype: Optional[IssueType]
+        """
         for issue_type in self.issue_types:
             if issue_type.name == name:
                 return issue_type
         return None
 
     def get_screen_scheme(self, name):
+        """
+        Searches for a screen scheme by its name in the list of available screen schemes.
+
+        :param name: The name of the screen scheme to search for.
+        :type name: str
+        :return: The screen scheme object with the specified name if found,
+            otherwise None.
+        :rtype: Optional[ScreenScheme]
+        """
         for screen_scheme in self.screen_schemes:
             if screen_scheme.name == name:
                 return screen_scheme
         return None
 
 class Projects:
+    """
+    This class provides methods for managing and interacting with projects, including listing,
+    creating, deleting, and applying templates for project configurations within a client system.
+    It allows users to perform various project-related operations with specific configurations,
+    workflows, screen schemes, and issue types.
 
+    :ivar client: Reference to the client instance used for handling API operations.
+    :type client: Client
+    """
     def __init__(self, client):
+        """
+        Represents the initialization of an object with a specified client.
+
+        This constructor is responsible for initializing an instance with the given
+        client object. The client is expected to provide the necessary interface or
+        connection details required by the class for its functionality.
+
+        :param client: The client object required for the initialization.
+        :type client: Any
+        """
         self.client = client
 
     def delete_project(self, project, enable_undo=False):
+        """
+        Deletes a project in the system.
+
+        This method will permanently delete the specified project unless the
+        `enable_undo` parameter is set to True. The deletion operation is
+        performed using the client API endpoint. The system will raise an
+        exception if the request fails.
+
+        :param project: The project object to be deleted. This should include the
+            project ID that uniquely identifies the project.
+        :type project: Project
+        :param enable_undo: A boolean flag indicating whether undo capabilities
+            should be enabled during the deletion process. Defaults to False.
+        :type enable_undo: bool
+        :return: None
+        """
         resp = self.client.delete(f"/rest/api/3/project/{project.id}?enableUndo={enable_undo}")
         resp.raise_for_status()
 
     def get_all(self, status='live'):
+        """
+        Fetches all projects from the API based on the specified status. This method paginates
+        the results and accumulates all projects into a list until all pages are processed.
+        The `status` parameter determines the type of projects to retrieve.
+
+        :param status: Project status to filter by (default is 'live').
+            Acceptable values are 'live', 'deleted', or similar recognized statuses.
+        :type status: str
+        :return: A list of Project objects corresponding to the specified status.
+        :rtype: list[Project]
+        """
         _l = []
         start_at = 0
         max_results = 50
@@ -189,12 +491,39 @@ class Projects:
         return _l
 
     def get_project(self, project_key):
+        """
+        Retrieve a project by its project key.
+
+        This function fetches the project details for the given project key using the
+        REST API. It raises an exception if the request fails. The project data is
+        wrapped into a `Project` object upon successful retrieval.
+
+        :param project_key: The unique key of the project to be retrieved.
+        :type project_key: str
+        :return: An instance of the `Project` class that encapsulates the project details.
+        :rtype: Project
+        :raises HTTPError: If the request to fetch the project data fails.
+        """
         _l = []
         resp = self.client.get(path=f'/rest/api/3/project/{project_key}')
         resp.raise_for_status()
         return Project(resp.json(), self.client)
 
     def apply_template(self, project: Project, template: dict):
+        """
+        Applies a given template configuration to a specified project, including setting up fields,
+        workflows, screens, issue types, screen schemes, and various mappings. The method utilizes
+        the provided template to make updates and additions to the project structure and metadata
+        by interacting with a client API.
+
+        :param project: The project to which the template will be applied.
+        :type project: Project
+        :param template: The template definition including fields, workflows, screens, issue types,
+            and other configurations to apply to the project.
+        :type template: dict
+        :return: The updated project instance after applying the template.
+        :rtype: Project
+        """
         logging.info(f'Applying Template "{template.get('name')}" to {project.key}')
         project.assign_fields(template.get('fields'))
         workflow_scheme = self.client.workflows().get_workflow_scheme_for_project(project)
@@ -227,7 +556,8 @@ class Projects:
                     for field in project.project_fields:
                         for field_name in screen_tab_def['fields']:
                             if field.name == field_name:
-                                field_ids.append(field.id)
+                                if field.id not in field_ids:
+                                    field_ids.append(field.id)
                                 break
 
                     tab = screen.create_tab(screen_tab_def['name'], field_ids)
@@ -264,10 +594,32 @@ class Projects:
                 workflow_scheme.add_workflow_issue_type(project.get_issue_type(f"{project.key}: {mapping['issue_type']}"),
                                                         f"{project.key}: {mapping['workflow']}")
 
+
+
         return project
 
 
     def create(self, name: str, key: str, template: dict):
+        """
+        Creates a new project using the specified name, key, and template, and applies the template's
+        configuration to the project.
+
+        The method performs the following tasks:
+        1. Creates the project using the provided name and key.
+        2. Applies groups, fields, issue types, issue type schemes, screens, screen tabs, screen schemes,
+           issue type screen schemes, workflows, and workflow schemes, derived from the template.
+        3. Links the created elements to the project for proper configuration inheritance.
+
+        :param name: The name of the project to create.
+        :type name: str
+        :param key: The unique key for the project.
+        :type key: str
+        :param template: The template that contains the project configuration, including groups,
+                         issue types, fields, screens, workflows, etc.
+        :type template: dict
+        :return: The created project instance with all configurations applied.
+        :rtype: Project
+        """
         payload = {
             "key": key,
             "name": name,
