@@ -174,10 +174,18 @@ class Statuses:
                  from the API with their usage and workflow usage details.
         :rtype: list[Status]
         """
-        resp = self.client.get(path='/rest/api/3/statuses/search?expand=usages,workflowUsages')
-        resp.raise_for_status()
 
-        return [Status(status_data, self.client) for status_data in resp.json()['values']]
+        _l = []
+        start_at = 0
+        max_results = 50
+        is_last = False
+        while not is_last:
+            resp = self.client.get(f"/rest/api/3/statuses/search?expand=usages,workflowUsages&startAt={start_at}&maxResults={max_results}")
+            is_last = resp.json().get('isLast')
+            start_at += max_results
+            for status_data in resp.json().get('values', []):
+                _l.append(Status(status_data, self.client))
+        return _l
 
     def delete(self, status: Status):
         """
