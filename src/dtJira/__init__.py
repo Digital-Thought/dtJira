@@ -1,7 +1,8 @@
 from jira.client import JIRA
 import requests
 from requests.auth import HTTPBasicAuth
-
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import json
 
 from .fields import Fields
@@ -54,6 +55,18 @@ class JiraClient:
         self.password = password
         self.jira = JIRA(server=self.url, basic_auth=(self.username, self.password))
         self.session = requests.Session()
+        retries = Retry(
+            total=5,  # Total number of retries
+            backoff_factor=0.5,  # Backoff multiplier (e.g., 0.5, 1, 2, ...)
+            status_forcelist=[500, 502, 503, 504],  # Retry on these HTTP status codes
+            allowed_methods=["HEAD", "GET", "OPTIONS", "POST", "PUT", "DELETE"]  # Methods to retry
+        )
+        # Attach the retry logic to an HTTPAdapter
+        adapter = HTTPAdapter(max_retries=retries)
+
+        # Mount the adapter to the session
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
         self.session.auth = HTTPBasicAuth(self.username, self.password)
         self.session.headers.update({"Content-Type": "application/json"})
 
