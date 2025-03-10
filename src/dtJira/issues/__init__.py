@@ -1,6 +1,8 @@
 import logging
 import re
 
+from dtJira.fields.text_area import TextAreaContent
+
 class Issue:
     """
     Represents an issue with associated metadata and operations.
@@ -452,6 +454,8 @@ class Issues:
             if custom.endswith('textfield'):
                 return field.get('key'), value
             elif custom.endswith('textarea'):
+                if isinstance(value, TextAreaContent):
+                    return field.get('key'), value.content
                 return field.get('key'), self.format_textarea_resp(value)
             else:
                 return field.get('key'), value
