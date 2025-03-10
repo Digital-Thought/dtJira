@@ -455,6 +455,10 @@ class Issues:
                 return field.get('key'), self.format_textarea_resp(value)
             else:
                 return field.get('key'), value
+        elif field_scheme == 'number':
+            return field.get('key'), value
+        elif field_scheme == 'datetime':
+            return field.get('key'), value
         elif field_scheme == 'array':
             array_values = []
             if isinstance(value, dict):
@@ -463,18 +467,22 @@ class Issues:
                     if val_id:
                         array_values.append({"id": val_id})
             else:
-                for val in value:
-                    if isinstance(val, str):
-                        val_id = self.get_allowed_value_id(field.get('allowedValues'), val)
-                    elif isinstance(val, dict):
-                        for key in val:
-                            val_id = self.get_allowed_value_id(field.get('allowedValues'), val[key])
-                    else:
-                        val_id = None
-                        logging.error(f'When processing ARRAY values.  The instance type was not fond for {str(val)}')
+                if custom.endswith('labels'):
+                    return field.get('key'), value
+                else:
+                    for val in value:
+                        if isinstance(val, str):
+                            val_id = self.get_allowed_value_id(field.get('allowedValues'), val)
+                        elif isinstance(val, dict):
+                            for key in val:
+                                val_id = self.get_allowed_value_id(field.get('allowedValues'), val[key])
+                        else:
+                            val_id = None
+                            logging.error(
+                                f'When processing ARRAY values.  The instance type was not fond for {str(val)}')
 
-                    if val_id:
-                        array_values.append({"id": val_id})
+                        if val_id:
+                            array_values.append({"id": val_id})
 
             return field.get('key'), array_values
         elif field_scheme == 'option':
