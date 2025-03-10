@@ -197,6 +197,25 @@ class Issue:
         """
         return self.detail['fields']['reporter']
 
+    def apply_transition(self, transition_name):
+        transition_id = None
+        response = self.client.post(f'/rest/api/3/issue/{self.key}/transitions')
+        response.raise_for_status()
+        transitions = response.json()["transitions"]
+        for transition in transitions:
+            if transition['name'] == transition_name:
+                transition_id = transition['id']
+
+        if transition_id is None:
+            raise Exception(f'No transition named "{transition_name}"')
+
+        payload = {
+            "transition": {"id": transition_id}
+        }
+        response = self.client.post(f"/rest/api/3/issue/{self.key}/transitions", json=payload)
+        response.raise_for_status()
+
+
     @property
     def summary(self):
         """
@@ -452,8 +471,10 @@ class Issues:
         custom = field.get('schema').get('custom')
         if field_scheme == 'string':
             if custom.endswith('textfield'):
+                if isinstance(value, TextAreaContent):
+                    return field.get('key'), value.content
                 return field.get('key'), value
-            elif custom.endswith('textarea'):
+            elif custom.endswith('textarea') or custom.endswith('readonlyfield'):
                 if isinstance(value, TextAreaContent):
                     return field.get('key'), value.content
                 return field.get('key'), self.format_textarea_resp(value)
@@ -558,6 +579,12 @@ class Issues:
             results.append(Issue(issue, self.client, relevant_issue_type, self.get_field))
         return results
 
+    def get_issue(self, key):
+        resp = self.client.get(path=f'/rest/api/3/issue/{key}')
+        resp.raise_for_status()
+        data = resp.json()
+        return Issue(data, self.client, data['fields']['issuetype'], self.get_field)
+
     def create_issue(self, issue_type, summary, description='', fields={}, parent_issue: Issue=None):
         """
         Creates a new issue in the Jira system with the specified details. This function sends a POST request
@@ -579,15 +606,22 @@ class Issues:
                     "id": self.project.id
                 },
                 "summary": summary,
-                "description": self.format_textarea_resp(description),
                 "issuetype": {
                     "id": issue_type['id']
                 }
             }
         }
 
+        if isinstance(description, TextAreaContent):
+            payload['fields']['description'] = description.content
+        else:
+            payload['fields']['description'] = self.format_textarea_resp(description)
+
         if parent_issue:
-            payload['fields']['parent'] = {'key': parent_issue.key}
+            if isinstance(parent_issue, str):
+                payload['fields']['parent'] = {'key': parent_issue}
+            else:
+                payload['fields']['parent'] = {'key': parent_issue.key}
 
         for field in fields:
             try:
