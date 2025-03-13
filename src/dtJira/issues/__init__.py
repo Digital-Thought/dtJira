@@ -199,7 +199,7 @@ class Issue:
 
     def apply_transition(self, transition_name):
         transition_id = None
-        response = self.client.post(f'/rest/api/3/issue/{self.key}/transitions')
+        response = self.client.get(f'/rest/api/3/issue/{self.key}/transitions')
         response.raise_for_status()
         transitions = response.json()["transitions"]
         for transition in transitions:
@@ -212,7 +212,7 @@ class Issue:
         payload = {
             "transition": {"id": transition_id}
         }
-        response = self.client.post(f"/rest/api/3/issue/{self.key}/transitions", json=payload)
+        response = self.client.post(f"/rest/api/3/issue/{self.key}/transitions", data=payload)
         response.raise_for_status()
 
 
@@ -584,6 +584,35 @@ class Issues:
         resp.raise_for_status()
         data = resp.json()
         return Issue(data, self.client, data['fields']['issuetype'], self.get_field)
+
+    def update_issue(self, issue_key, issue_type, summary=None, description=None, fields={}):
+        payload = {
+            "fields": {}
+        }
+
+        if summary is not None:
+            payload['fields']['summary'] = summary
+
+        if description is not None:
+            if isinstance(description, TextAreaContent):
+                payload['fields']['description'] = description.content
+            else:
+                payload['fields']['description'] = self.format_textarea_resp(description)
+
+        for field in fields:
+            try:
+                if fields[field]:
+                    field_key, val = self.format_field_data(issue_type, field, fields[field])
+                    if field_key:
+                        payload['fields'][field_key] = val
+                    else:
+                        logging.error(f'Could not find field key for "{field}"')
+            except Exception as e:
+                logging.exception(f'Field {field}: {e}')
+                continue
+
+        resp = self.client.put(path=f'/rest/api/3/issue/{issue_key}', data=payload)
+        resp.raise_for_status()
 
     def create_issue(self, issue_type, summary, description='', fields={}, parent_issue: Issue=None):
         """

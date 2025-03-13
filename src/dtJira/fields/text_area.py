@@ -33,6 +33,7 @@ def convert_markdown_to_adf(markdown_text):
 class TextAreaContent:
 
     def __init__(self, content='', json_content=None):
+        self.original_content = content
         if not isinstance(content, str):
             content = self.format_content(content)
 

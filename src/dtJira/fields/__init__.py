@@ -292,9 +292,9 @@ class Fields:
         "cascadingselect": "cascadingselectsearcher",
         "datepicker": "daterange",
         "datetime": "datetimerange",
-        "float": "exactnumber or numberrange",
+        "float": "exactnumber",
         "grouppicker": "grouppickersearcher",
-        "importid": "exactnumber or numberrange",
+        "importid": "exactnumber",
         "labels": "labelsearcher",
         "multicheckboxes": "multiselectsearcher",
         "multigrouppicker": "multiselectsearcher",
@@ -388,7 +388,7 @@ class Fields:
 
         response = self.client.post("/rest/api/3/field", data=payload)
         if response.status_code != 201:
-            raise Exception(f"Failed to create custom field: {response.text}")
+            raise Exception(f"Failed to create custom field: {response.text}, field type: {field_type}, field name: {field_name}")
 
         field = Field(response.json(), self.client)
         if options:
