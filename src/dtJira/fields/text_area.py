@@ -1,6 +1,7 @@
 import subprocess
 import json
 import base64
+import logging
 
 def convert_markdown_to_adf(markdown_text):
     """Converts Markdown to JIRA Atlassian Document Format (ADF) using Node.js"""
@@ -14,18 +15,19 @@ def convert_markdown_to_adf(markdown_text):
             ["node", "-e", js],
             capture_output=True,
             text=True,
-            check=True
+            check=False
         )
-
+        if result.returncode != 0:
+            logging.error(f"Error running Node.js script: {result.returncode}")
+            logging.error(f'stderr: {result.stderr}')
+            logging.error(f'stdout: {result.stdout}')
+            return None
         # Parse the JSON output from Node.js
         adf_output = json.loads(result.stdout)
         return adf_output
 
-    except subprocess.CalledProcessError as e:
-        print(f"Error running Node.js script: {e}")
-        return None
     except json.JSONDecodeError:
-        print("Error: Failed to parse JSON output from Node.js")
+        logging.error("Error: Failed to parse JSON output from Node.js")
         return None
 
 class TextAreaContent:
