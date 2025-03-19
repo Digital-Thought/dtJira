@@ -522,22 +522,7 @@ class Issues:
             return None, None
 
     def get_field(self, issue_type, field_name):
-        """
-        Retrieve a specific field's metadata from an issue type's field metadata.
-
-        This method searches through the metadata of a given issue type to find a field matching
-        the provided field name. If such a field is found, it returns the relevant metadata.
-        If no matching field is found, it returns None.
-
-        :param issue_type: Dictionary containing issue type details. It must have an 'id' key
-            corresponding to the identifier of the issue type.
-        :type issue_type: dict
-        :param field_name: The name of the field to look for within the issue type's metadata.
-        :type field_name: str
-        :return: Metadata of the requested field if found, otherwise None.
-        :rtype: dict or None
-        """
-        for field in self.issue_type_field_metadata[issue_type['id']]:
+        for field in self.issue_type_field_metadata[issue_type.id]:
             if field['name'] == field_name:
                 return field
         return None
