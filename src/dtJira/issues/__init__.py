@@ -621,7 +621,7 @@ class Issues:
                 },
                 "summary": summary,
                 "issuetype": {
-                    "id": issue_type['id']
+                    "id": issue_type.id
                 }
             }
         }
