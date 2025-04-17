@@ -522,7 +522,12 @@ class Issues:
             return None, None
 
     def get_field(self, issue_type, field_name):
-        for field in self.issue_type_field_metadata[issue_type.id]:
+        if isinstance(issue_type, dict):
+            issue_type_id = issue_type['id']
+        else:
+            issue_type_id = issue_type.id
+
+        for field in self.issue_type_field_metadata[issue_type_id]:
             if field['name'] == field_name:
                 return field
         return None
@@ -614,6 +619,11 @@ class Issues:
         :return: An Issue object representing the created Jira issue.
         :rtype: Issue
         """
+        if isinstance(issue_type, dict):
+            issue_type_id = issue_type['id']
+        else:
+            issue_type_id = issue_type.id
+
         payload = {
             "fields": {
                 "project": {
@@ -621,7 +631,7 @@ class Issues:
                 },
                 "summary": summary,
                 "issuetype": {
-                    "id": issue_type.id
+                    "id": issue_type_id
                 }
             }
         }
