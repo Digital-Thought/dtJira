@@ -592,7 +592,14 @@ class Issues:
             return []
 
         jql = f'project="{self.project.key}" AND issuetype="{relevant_issue_type['name']}" AND updated >= "-{days}d"'
-        resp = self.client.get(path=f'/rest/api/3/search?jql={jql}')
+
+        # Use new /search/jql endpoint (POST method as per API v3 migration)
+        payload = {
+            "jql": jql,
+            "maxResults": 100,
+            "fields": ["*all"]
+        }
+        resp = self.client.post(path='/rest/api/3/search/jql', data=payload)
         resp.raise_for_status()
         results = []
         for issue in resp.json()['issues']:
