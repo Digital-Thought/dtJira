@@ -1,6 +1,7 @@
 import logging
 
 from dtJira.issues import Issues
+from dtJira.projects.tracking import DeploymentTracker
 
 
 class Project:
@@ -466,6 +467,283 @@ class Projects:
         resp = self.client.delete(f"/rest/api/3/project/{project.id}?enableUndo={enable_undo}")
         resp.raise_for_status()
 
+    def rollback_template_deployment(self, project_key, delete_project=True, enable_undo=False, tracking_dir=".dtjira_deployments"):
+        """
+        Rolls back a template deployment by deleting project-specific resources.
+
+        This method uses the deployment tracking file to precisely delete resources created
+        during template deployment. If no tracking file exists, it falls back to searching
+        for resources by project key prefix.
+
+        Resources are deleted in reverse order of creation:
+        1. Workflow schemes
+        2. Workflows (inactive only)
+        3. Issue type screen schemes
+        4. Screen schemes
+        5. Screens
+        6. Issue type schemes
+        7. Issue types
+        8. Project (if delete_project is True)
+
+        Note: Groups and custom fields are NOT deleted as they may be shared across projects.
+
+        :param project_key: The key of the project to roll back.
+        :type project_key: str
+        :param delete_project: Whether to delete the project itself after cleaning up
+            resources. Defaults to True.
+        :type delete_project: bool
+        :param enable_undo: Whether to enable undo for project deletion. Only applies
+            if delete_project is True. Defaults to False.
+        :type enable_undo: bool
+        :param tracking_dir: Directory where tracking files are stored. Defaults to
+            '.dtjira_deployments'.
+        :type tracking_dir: str
+        :return: Dictionary containing summary of deleted resources and any errors encountered.
+        :rtype: dict
+        """
+        summary = {
+            'issue_types_deleted': [],
+            'issue_type_schemes_deleted': [],
+            'screens_deleted': [],
+            'screen_schemes_deleted': [],
+            'issue_type_screen_schemes_deleted': [],
+            'workflows_deleted': [],
+            'workflow_schemes_deleted': [],
+            'project_deleted': False,
+            'tracking_file_used': False,
+            'errors': []
+        }
+
+        logging.info(f"Starting rollback for project: {project_key}")
+
+        # Try to load tracking file
+        tracker = DeploymentTracker.load(project_key, tracking_dir)
+
+        if tracker:
+            logging.info(f"Using tracking file for precise rollback of {project_key}")
+            summary['tracking_file_used'] = True
+
+            # Delete workflow schemes
+            for workflow_scheme in tracker.data['resources_created']['workflow_schemes']:
+                try:
+                    # Workflow schemes are automatically cleaned when project is deleted
+                    # Just track them in summary
+                    summary['workflow_schemes_deleted'].append(workflow_scheme['name'])
+                    logging.info(f"Tracked workflow scheme for deletion: {workflow_scheme['name']}")
+                except Exception as e:
+                    summary['errors'].append(f"Error tracking workflow scheme {workflow_scheme.get('name')}: {e}")
+                    logging.warning(f"Error tracking workflow scheme: {e}")
+
+            # Delete workflows (inactive only via API)
+            for workflow in tracker.data['resources_created']['workflows']:
+                try:
+                    # Try to delete inactive workflow
+                    # Active workflows will be handled when project is deleted
+                    try:
+                        from dtJira.workflows import Workflow
+                        workflow_obj = Workflow({'id': {'entityId': workflow['entity_id']}, 'name': workflow['name']}, self.client)
+                        self.client.workflows().delete_inactive_workflow(workflow_obj)
+                        summary['workflows_deleted'].append(workflow['name'])
+                        logging.info(f"Deleted workflow: {workflow['name']}")
+                    except Exception as e:
+                        # Likely active - will be deleted with project
+                        logging.info(f"Workflow {workflow['name']} likely active - will be deleted with project: {e}")
+                except Exception as e:
+                    summary['errors'].append(f"Error processing workflow {workflow.get('name')}: {e}")
+                    logging.warning(f"Error processing workflow: {e}")
+
+            # Delete issue type screen schemes
+            for itss in tracker.data['resources_created']['issue_type_screen_schemes']:
+                try:
+                    from dtJira.issues.types import IssueTypeScreenScheme
+                    scheme_obj = IssueTypeScreenScheme({'id': itss['id'], 'name': itss['name']}, self.client)
+                    self.client.issue_types().delete_issue_type_screen_scheme(scheme_obj)
+                    summary['issue_type_screen_schemes_deleted'].append(itss['name'])
+                    logging.info(f"Deleted issue type screen scheme: {itss['name']}")
+                except Exception as e:
+                    summary['errors'].append(f"Failed to delete issue type screen scheme {itss['name']}: {e}")
+                    logging.warning(f"Failed to delete issue type screen scheme {itss['name']}: {e}")
+
+            # Delete screen schemes
+            for screen_scheme in tracker.data['resources_created']['screen_schemes']:
+                try:
+                    from dtJira.screens import ScreenScheme
+                    scheme_obj = ScreenScheme({'id': screen_scheme['id'], 'name': screen_scheme['name']}, self.client)
+                    self.client.screens().delete_screen_scheme(scheme_obj)
+                    summary['screen_schemes_deleted'].append(screen_scheme['name'])
+                    logging.info(f"Deleted screen scheme: {screen_scheme['name']}")
+                except Exception as e:
+                    summary['errors'].append(f"Failed to delete screen scheme {screen_scheme['name']}: {e}")
+                    logging.warning(f"Failed to delete screen scheme {screen_scheme['name']}: {e}")
+
+            # Delete screens
+            for screen in tracker.data['resources_created']['screens']:
+                try:
+                    from dtJira.screens import Screen
+                    screen_obj = Screen({'id': screen['id'], 'name': screen['name']}, self.client)
+                    self.client.screens().delete_screen(screen_obj)
+                    summary['screens_deleted'].append(screen['name'])
+                    logging.info(f"Deleted screen: {screen['name']}")
+                except Exception as e:
+                    summary['errors'].append(f"Failed to delete screen {screen['name']}: {e}")
+                    logging.warning(f"Failed to delete screen {screen['name']}: {e}")
+
+            # Delete issue type schemes
+            for its in tracker.data['resources_created']['issue_type_schemes']:
+                try:
+                    # Issue type schemes are automatically cleaned when project is deleted
+                    summary['issue_type_schemes_deleted'].append(its['name'])
+                    logging.info(f"Tracked issue type scheme for deletion: {its['name']}")
+                except Exception as e:
+                    summary['errors'].append(f"Error tracking issue type scheme {its.get('name')}: {e}")
+                    logging.warning(f"Error tracking issue type scheme: {e}")
+
+            # Delete issue types
+            for issue_type in tracker.data['resources_created']['issue_types']:
+                try:
+                    from dtJira.issues.types import IssueType
+                    issue_type_obj = IssueType({'id': issue_type['id'], 'name': issue_type['name']}, self.client)
+                    self.client.issue_types().delete(issue_type_obj)
+                    summary['issue_types_deleted'].append(issue_type['name'])
+                    logging.info(f"Deleted issue type: {issue_type['name']}")
+                except Exception as e:
+                    summary['errors'].append(f"Failed to delete issue type {issue_type['name']}: {e}")
+                    logging.warning(f"Failed to delete issue type {issue_type['name']}: {e}")
+
+            # Delete the project
+            if delete_project:
+                try:
+                    project = self.get_project(project_key)
+                    logging.info(f"Deleting project: {project_key}")
+                    self.delete_project(project, enable_undo=enable_undo)
+                    summary['project_deleted'] = True
+                    logging.info(f"Successfully deleted project: {project_key}")
+                except Exception as e:
+                    summary['errors'].append(f"Failed to delete project: {e}")
+                    logging.error(f"Failed to delete project {project_key}: {e}")
+
+            # Delete tracking file
+            if summary['project_deleted']:
+                tracker.delete_tracking_file()
+
+        else:
+            # Fallback: No tracking file - search by naming convention
+            logging.warning(f"No tracking file found for {project_key}. Using fallback search by naming convention.")
+            summary['tracking_file_used'] = False
+
+            try:
+                # Get project
+                project = self.get_project(project_key)
+            except Exception as e:
+                summary['errors'].append(f"Failed to retrieve project: {e}")
+                logging.error(f"Failed to retrieve project {project_key}: {e}")
+                return summary
+
+            # Delete issue types with project key prefix
+            try:
+                logging.info(f"Deleting issue types for {project_key}...")
+                all_issue_types = self.client.issue_types().get_all_user_issue_types()
+                for issue_type in all_issue_types:
+                    if issue_type.name.startswith(f"{project_key}:"):
+                        try:
+                            self.client.issue_types().delete(issue_type)
+                            summary['issue_types_deleted'].append(issue_type.name)
+                            logging.info(f"Deleted issue type: {issue_type.name}")
+                        except Exception as e:
+                            summary['errors'].append(f"Failed to delete issue type {issue_type.name}: {e}")
+                            logging.warning(f"Failed to delete issue type {issue_type.name}: {e}")
+            except Exception as e:
+                summary['errors'].append(f"Failed to retrieve issue types: {e}")
+                logging.error(f"Failed to retrieve issue types: {e}")
+
+            # Delete screens with project key prefix
+            try:
+                logging.info(f"Deleting screens for {project_key}...")
+                all_screens = self.client.screens().get_all_screens()
+                for screen in all_screens:
+                    if project_key in screen.name:
+                        try:
+                            self.client.screens().delete_screen(screen)
+                            summary['screens_deleted'].append(screen.name)
+                            logging.info(f"Deleted screen: {screen.name}")
+                        except Exception as e:
+                            summary['errors'].append(f"Failed to delete screen {screen.name}: {e}")
+                            logging.warning(f"Failed to delete screen {screen.name}: {e}")
+            except Exception as e:
+                summary['errors'].append(f"Failed to retrieve screens: {e}")
+                logging.error(f"Failed to retrieve screens: {e}")
+
+            # Delete screen schemes with project key prefix
+            try:
+                logging.info(f"Deleting screen schemes for {project_key}...")
+                all_screen_schemes = self.client.screens().get_all_screen_schemes()
+                for scheme in all_screen_schemes:
+                    if project_key in scheme.name:
+                        try:
+                            self.client.screens().delete_screen_scheme(scheme)
+                            summary['screen_schemes_deleted'].append(scheme.name)
+                            logging.info(f"Deleted screen scheme: {scheme.name}")
+                        except Exception as e:
+                            summary['errors'].append(f"Failed to delete screen scheme {scheme.name}: {e}")
+                            logging.warning(f"Failed to delete screen scheme {scheme.name}: {e}")
+            except Exception as e:
+                summary['errors'].append(f"Failed to retrieve screen schemes: {e}")
+                logging.error(f"Failed to retrieve screen schemes: {e}")
+
+            # Delete issue type screen schemes with project key prefix
+            try:
+                logging.info(f"Deleting issue type screen schemes for {project_key}...")
+                all_itss = self.client.issue_types().get_all_issue_type_screen_schemes()
+                for scheme in all_itss:
+                    # Access name from detail dictionary since it's not a property
+                    scheme_name = scheme.detail.get('name', '')
+                    if project_key in scheme_name:
+                        try:
+                            self.client.issue_types().delete_issue_type_screen_scheme(scheme)
+                            summary['issue_type_screen_schemes_deleted'].append(scheme_name)
+                            logging.info(f"Deleted issue type screen scheme: {scheme_name}")
+                        except Exception as e:
+                            summary['errors'].append(f"Failed to delete issue type screen scheme {scheme_name}: {e}")
+                            logging.warning(f"Failed to delete issue type screen scheme {scheme_name}: {e}")
+            except Exception as e:
+                summary['errors'].append(f"Failed to retrieve issue type screen schemes: {e}")
+                logging.error(f"Failed to retrieve issue type screen schemes: {e}")
+
+            # Delete workflows with project key prefix
+            try:
+                logging.info(f"Deleting inactive workflows for {project_key}...")
+                all_workflows = self.client.workflows().get_all(active=False)
+                for workflow in all_workflows:
+                    try:
+                        if hasattr(workflow, 'name') and project_key in workflow.name:
+                            try:
+                                self.client.workflows().delete_inactive_workflow(workflow)
+                                summary['workflows_deleted'].append(workflow.name)
+                                logging.info(f"Deleted workflow: {workflow.name}")
+                            except Exception as e:
+                                summary['errors'].append(f"Failed to delete workflow {workflow.name}: {e}")
+                                logging.warning(f"Failed to delete workflow {workflow.name}: {e}")
+                    except (KeyError, AttributeError):
+                        # Skip workflows without name attribute
+                        pass
+            except Exception as e:
+                summary['errors'].append(f"Failed to retrieve workflows: {e}")
+                logging.error(f"Failed to retrieve workflows: {e}")
+
+            # Delete the project itself
+            if delete_project:
+                try:
+                    logging.info(f"Deleting project: {project_key}")
+                    self.delete_project(project, enable_undo=enable_undo)
+                    summary['project_deleted'] = True
+                    logging.info(f"Successfully deleted project: {project_key}")
+                except Exception as e:
+                    summary['errors'].append(f"Failed to delete project: {e}")
+                    logging.error(f"Failed to delete project {project_key}: {e}")
+
+        logging.info(f"Rollback complete for {project_key}")
+        return summary
+
     def get_all(self, status='live'):
         """
         Fetches all projects from the API based on the specified status. This method paginates
@@ -609,6 +887,7 @@ class Projects:
         2. Applies groups, fields, issue types, issue type schemes, screens, screen tabs, screen schemes,
            issue type screen schemes, workflows, and workflow schemes, derived from the template.
         3. Links the created elements to the project for proper configuration inheritance.
+        4. Tracks all created resources for potential rollback.
 
         :param name: The name of the project to create.
         :type name: str
@@ -620,118 +899,192 @@ class Projects:
         :return: The created project instance with all configurations applied.
         :rtype: Project
         """
-        payload = {
-            "key": key,
-            "name": name,
-            "projectTemplateKey": "com.pyxis.greenhopper.jira:gh-simplified-kanban-classic",
-            "projectTypeKey": "software",
-            "assigneeType": "UNASSIGNED",
-            "leadAccountId": self.client.get_me()['accountId']
-        }
-        self.client.groups().create_groups(template.get('groups', []))
-        resp = self.client.post(path='/rest/api/3/project', data=payload)
-        resp.raise_for_status()
-        project = Project(resp.json(), self.client)
-        logging.info(f'Applying Template "{template.get('name')}" to {project.key}')
-        project.assign_fields(template.get('fields'))
+        # Initialise deployment tracker
+        tracker = DeploymentTracker(
+            project_key=key,
+            project_name=name,
+            template_name=template.get('name')
+        )
 
-        for issue_type_def in template.get('issue_types'):
-            logging.info(f'Applying Issue Type "{issue_type_def.get("name")}" to {project.key}')
-            issue_type = self.client.issue_types().create(f"{project.key}: {issue_type_def['name']}", issue_type_def['description'],
-                                                              issue_type_def['subtask'])
-            project.issue_types.append(issue_type)
+        try:
+            # Get deploying user email
+            try:
+                me = self.client.get_me()
+                tracker.set_deployed_by(me.get('emailAddress', 'unknown'))
+            except Exception:
+                pass  # Non-critical, continue without user email
 
-        for issue_type_scheme_def in template.get('issue_type_schemes'):
-            target_issue_type_ids = []
-            for target_issue_type in issue_type_scheme_def.get('issue_types'):
-                for issue_type in project.issue_types:
-                    if issue_type.name == f"{project.key}: {target_issue_type}":
-                        target_issue_type_ids.append(issue_type.id)
+            # Create groups (not tracked as they may be shared)
+            self.client.groups().create_groups(template.get('groups', []))
 
-            issue_type_scheme = self.client.issue_types().create_issue_type_scheme(f"{project.key}: {issue_type_scheme_def['name']}",
-                                                                           issue_type_scheme_def['description'],
-                                                                           target_issue_type_ids)
-            project.assign_issue_type_scheme(issue_type_scheme)
+            # Create project
+            payload = {
+                "key": key,
+                "name": name,
+                "projectTemplateKey": "com.pyxis.greenhopper.jira:gh-simplified-kanban-classic",
+                "projectTypeKey": "software",
+                "assigneeType": "UNASSIGNED",
+                "leadAccountId": self.client.get_me()['accountId']
+            }
+            resp = self.client.post(path='/rest/api/3/project', data=payload)
+            if resp.status_code != 200 and resp.status_code != 201:
+                logging.error(f"Project creation failed. Status: {resp.status_code}, Response: {resp.text}")
+            resp.raise_for_status()
+            project = Project(resp.json(), self.client)
 
-        for screen_def in template.get('screens', []):
-            logging.info(f'Applying Screen Def "{screen_def.get("name")}" to {project.key}')
-            screen = self.client.screens().create(f"{project.key}: {screen_def['name']}", screen_def['description'])
-            project.screens.append(screen)
+            # Track project creation
+            tracker.set_project_id(project.id)
 
-        logging.info(f'Applying Screen Tabs to {project.key}')
-        for screen_tab_def in template.get('screen_tabs', []):
-            for screen in project.screens:
-                if screen.name == f"{project.key}: {screen_tab_def['screen']}":
-                    field_ids = []
-                    for field in project.project_fields:
-                        for field_name in screen_tab_def['fields']:
-                            if field.name == field_name:
-                                if field.id not in field_ids:
-                                    field_ids.append(field.id)
-                                break
+            logging.info(f'Applying Template "{template.get('name')}" to {project.key}')
 
-                    tab = screen.create_tab(screen_tab_def['name'], field_ids)
-                    if screen.id not in project.screen_tabs:
-                        project.screen_tabs[screen.id] = []
-                    project.screen_tabs[screen.id].append(tab)
+            # Assign fields (not tracked individually as fields may be shared)
+            project.assign_fields(template.get('fields'))
 
-        for screen_schemes_def in template.get('screen_schemes', []):
-            logging.info(f'Applying Screen Scheme Def "{screen_schemes_def['name']}" to {project.key}')
-            name = f"{project.key}: {screen_schemes_def['name']}"
-            resp = self.client.screens().create_screen_scheme(name, screen_schemes_def['description'],
-                                                              default=project.get_screen(f"{project.key}: {screen_schemes_def['screens']['default']}").id,
-                                                              edit=project.get_screen(f"{project.key}: {screen_schemes_def['screens']['default']}").id,
-                                                              view=project.get_screen(f"{project.key}: {screen_schemes_def['screens']['default']}").id)
+            # Create and track issue types
+            for issue_type_def in template.get('issue_types'):
+                logging.info(f'Applying Issue Type "{issue_type_def.get("name")}" to {project.key}')
+                issue_type = self.client.issue_types().create(
+                    f"{project.key}: {issue_type_def['name']}",
+                    issue_type_def['description'],
+                    issue_type_def['subtask']
+                )
+                project.issue_types.append(issue_type)
+                tracker.track_issue_type(issue_type.id, f"{project.key}: {issue_type_def['name']}")
 
-            project.screen_schemes.append(resp)
+            # Create and track issue type schemes
+            for issue_type_scheme_def in template.get('issue_type_schemes'):
+                target_issue_type_ids = []
+                for target_issue_type in issue_type_scheme_def.get('issue_types'):
+                    for issue_type in project.issue_types:
+                        if issue_type.name == f"{project.key}: {target_issue_type}":
+                            target_issue_type_ids.append(issue_type.id)
 
-        for issue_type_screen_scheme_def in template.get('issue_type_screen_schemes', []):
-            logging.info(f'Applying Screen/Issue Scheme to {project.key}')
-            issue_type_screen_scheme_name = f"{project.key}: {issue_type_screen_scheme_def['name']}"
-            mappings = []
-            for mapping_def in issue_type_screen_scheme_def['mappings']:
+                issue_type_scheme = self.client.issue_types().create_issue_type_scheme(
+                    f"{project.key}: {issue_type_scheme_def['name']}",
+                    issue_type_scheme_def['description'],
+                    target_issue_type_ids
+                )
+                project.assign_issue_type_scheme(issue_type_scheme)
+                tracker.track_issue_type_scheme(
+                    issue_type_scheme.id,
+                    f"{project.key}: {issue_type_scheme_def['name']}"
+                )
+
+            # Create and track screens
+            for screen_def in template.get('screens', []):
+                logging.info(f'Applying Screen Def "{screen_def.get("name")}" to {project.key}')
+                screen = self.client.screens().create(
+                    f"{project.key}: {screen_def['name']}",
+                    screen_def['description']
+                )
+                project.screens.append(screen)
+                tracker.track_screen(screen.id, f"{project.key}: {screen_def['name']}")
+
+            # Apply screen tabs
+            logging.info(f'Applying Screen Tabs to {project.key}')
+            for screen_tab_def in template.get('screen_tabs', []):
+                for screen in project.screens:
+                    if screen.name == f"{project.key}: {screen_tab_def['screen']}":
+                        field_ids = []
+                        for field in project.project_fields:
+                            for field_name in screen_tab_def['fields']:
+                                if field.name == field_name:
+                                    if field.id not in field_ids:
+                                        field_ids.append(field.id)
+                                    break
+
+                        tab = screen.create_tab(screen_tab_def['name'], field_ids)
+                        if screen.id not in project.screen_tabs:
+                            project.screen_tabs[screen.id] = []
+                        project.screen_tabs[screen.id].append(tab)
+
+            # Create and track screen schemes
+            for screen_schemes_def in template.get('screen_schemes', []):
+                logging.info(f'Applying Screen Scheme Def "{screen_schemes_def['name']}" to {project.key}')
+                name = f"{project.key}: {screen_schemes_def['name']}"
+                resp = self.client.screens().create_screen_scheme(
+                    name,
+                    screen_schemes_def['description'],
+                    default=project.get_screen(f"{project.key}: {screen_schemes_def['screens']['default']}").id,
+                    edit=project.get_screen(f"{project.key}: {screen_schemes_def['screens']['default']}").id,
+                    view=project.get_screen(f"{project.key}: {screen_schemes_def['screens']['default']}").id
+                )
+                project.screen_schemes.append(resp)
+                tracker.track_screen_scheme(resp.id, name)
+
+            # Create and track issue type screen schemes
+            for issue_type_screen_scheme_def in template.get('issue_type_screen_schemes', []):
+                logging.info(f'Applying Screen/Issue Scheme to {project.key}')
+                issue_type_screen_scheme_name = f"{project.key}: {issue_type_screen_scheme_def['name']}"
+                mappings = []
+                for mapping_def in issue_type_screen_scheme_def['mappings']:
                     mappings.append({
                         'issueTypeId': project.get_issue_type(f"{project.key}: {mapping_def['issue_type']}").id,
                         'screenSchemeId': project.get_screen_scheme(f"{project.key}: {mapping_def['screen_scheme']}").id
                     })
-            mappings.append({'issueTypeId': 'default',
-                             'screenSchemeId': project.get_screen_scheme(f"{project.key}: {issue_type_screen_scheme_def['default_screen_scheme']}").id})
+                mappings.append({
+                    'issueTypeId': 'default',
+                    'screenSchemeId': project.get_screen_scheme(f"{project.key}: {issue_type_screen_scheme_def['default_screen_scheme']}").id
+                })
 
-            i = self.client.issue_types().create_issue_type_screen_scheme(issue_type_screen_scheme_name,
-                                                                  issue_type_screen_scheme_def['description'],
-                                                                   mappings)
-            project.assign_issue_type_screen_scheme(i)
+                i = self.client.issue_types().create_issue_type_screen_scheme(
+                    issue_type_screen_scheme_name,
+                    issue_type_screen_scheme_def['description'],
+                    mappings
+                )
+                project.assign_issue_type_screen_scheme(i)
+                tracker.track_issue_type_screen_scheme(i.id, issue_type_screen_scheme_name)
 
-        for workflow_def in template.get('workflows', []):
-            logging.info(f'Applying Workflow "{workflow_def['name']}" to {project.key}')
-            workflow_name = f"{project.key}: {workflow_def['name']}"
-            workflow = self.client.workflows().create(workflow_name, workflow_def['description'], workflow_def, project)
-            project.workflows.append(workflow)
+            # Create and track workflows
+            for workflow_def in template.get('workflows', []):
+                logging.info(f'Applying Workflow "{workflow_def['name']}" to {project.key}')
+                workflow_name = f"{project.key}: {workflow_def['name']}"
+                workflow = self.client.workflows().create(workflow_name, workflow_def['description'], workflow_def, project)
+                project.workflows.append(workflow)
+                tracker.track_workflow(workflow.entity_id, workflow_name)
 
-        logging.info(f'Applying Workflow Scheme to {project.key}')
-        for workflow_scheme_def in template.get('workflow_schemes', []):
-            payload = {
-                "name": f"{project.key}: {workflow_scheme_def['name']}",
-                "description": workflow_scheme_def['description'],
-                "defaultWorkflow": workflow_scheme_def['defaultWorkflow'],
-                "issueTypeMappings": {}
-            }
+            # Create and track workflow schemes
+            logging.info(f'Applying Workflow Scheme to {project.key}')
+            for workflow_scheme_def in template.get('workflow_schemes', []):
+                payload = {
+                    "name": f"{project.key}: {workflow_scheme_def['name']}",
+                    "description": workflow_scheme_def['description'],
+                    "defaultWorkflow": workflow_scheme_def['defaultWorkflow'],
+                    "issueTypeMappings": {}
+                }
 
-            for mapping in workflow_scheme_def['issueTypeMappings']:
-                issue_type_id = project.get_issue_type(f"{project.key}: {mapping['issue_type']}").id
-                workflow_name = f"{project.key}: {mapping['workflow']}"
-                payload["issueTypeMappings"][f"{issue_type_id}"] = workflow_name
+                for mapping in workflow_scheme_def['issueTypeMappings']:
+                    issue_type_id = project.get_issue_type(f"{project.key}: {mapping['issue_type']}").id
+                    workflow_name = f"{project.key}: {mapping['workflow']}"
+                    payload["issueTypeMappings"][f"{issue_type_id}"] = workflow_name
 
-            resp = self.client.post(path='/rest/api/3/workflowscheme', data=payload)
-            resp.raise_for_status()
-            workflow_scheme_id = resp.json()['id']
+                resp = self.client.post(path='/rest/api/3/workflowscheme', data=payload)
+                resp.raise_for_status()
+                workflow_scheme_id = resp.json()['id']
 
-            payload = {
-                "projectId": project.id,
-                "workflowSchemeId": workflow_scheme_id
-            }
+                tracker.track_workflow_scheme(
+                    workflow_scheme_id,
+                    f"{project.key}: {workflow_scheme_def['name']}"
+                )
 
-            resp = self.client.put(path='/rest/api/3/workflowscheme/project', data=payload)
-            resp.raise_for_status()
+                payload = {
+                    "projectId": project.id,
+                    "workflowSchemeId": workflow_scheme_id
+                }
 
-        return project
+                resp = self.client.put(path='/rest/api/3/workflowscheme/project', data=payload)
+                resp.raise_for_status()
+
+            # Mark deployment as completed
+            tracker.mark_completed()
+            logging.info(f'Template deployment completed successfully for {project.key}')
+
+            return project
+
+        except Exception as e:
+            # Track error and mark deployment as failed
+            error_msg = f"Deployment failed: {str(e)}"
+            tracker.track_error(error_msg)
+            tracker.mark_failed()
+            logging.error(error_msg)
+            raise

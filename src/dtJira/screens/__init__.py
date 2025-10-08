@@ -92,7 +92,7 @@ class Screen:
         :rtype: dict
         :raises HTTPError: If the HTTP request to fetch the tabs fails.
         """
-        resp = self.client.get(path=f'/rest/api/3/screens/{self.id}/tabs?projectKey={project.id}')
+        resp = self.client.get(path=f'/rest/api/3/screens/{self.id}/tabs?projectKey={project.key}')
         resp.raise_for_status()
         return resp.json()
 
@@ -268,7 +268,7 @@ class Screens:
             "name": name,
             "description": description
         }
-        resp = self.client.post("/rest/api/2/screens", data=payload)
+        resp = self.client.post("/rest/api/3/screens", data=payload)
         resp.raise_for_status()
         return Screen(resp.json(), self.client)
 
@@ -413,6 +413,6 @@ class Screens:
         :type screen: Screen
         :return: None
         """
-        resp = self.client.delete(f"/rest/api/3/screens//{screen.id}")
+        resp = self.client.delete(f"/rest/api/3/screens/{screen.id}")
         resp.raise_for_status()
 

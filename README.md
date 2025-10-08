@@ -1,165 +1,339 @@
 # dtJira
 
+**Template-based Jira Cloud project deployment and management**
+
+[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![Jira Cloud API v3](https://img.shields.io/badge/Jira%20API-v3-blue.svg)](https://developer.atlassian.com/cloud/jira/platform/rest/v3/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Overview
 
-`dtJira` is a Python module that provides a client to interact with Jira Cloud via its REST API. It enables users to manage Jira projects, issues, workflows, fields, and groups programmatically. The library leverages the `jira` Python package and `requests` for API communication.
+dtJira is a Python library that simplifies Jira Cloud automation by providing template-based project deployment with automatic tracking and rollback capabilities. Deploy complete Jira projects from YAML templates, including custom issue types, workflows, screens, and configurations.
 
-## Features
+**Version:** 0.1.6
 
-- Authenticate and interact with Jira Cloud using Basic Authentication.
-- Manage Jira issues, projects, workflows, and fields.
-- Retrieve and modify issue types, statuses, and groups.
-- Access project configurations such as screen schemes and field mappings.
-- Perform HTTP requests with session management.
-- Deploy project setups defined in YAML files.
+## Key Features
 
-## Installation
+✨ **Template-Based Deployment** - Deploy complete Jira projects from YAML configuration files
+📊 **Automatic Tracking** - Track all created resources with deployment metadata
+🔄 **Precision Rollback** - Clean up test projects or recover from failed deployments
+🛡️ **Safe & Reliable** - Fallback mechanisms and comprehensive error handling
+🚀 **Simple API** - Intuitive wrapper around Jira Cloud REST API v3
+📝 **Comprehensive Docs** - Detailed guides, examples, and API reference
 
-Ensure you have Python 3.7+ installed, then install the required dependencies:
+## Quick Start
 
-```sh
-pip install jira requests
+### Installation
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd dtJira
+
+# Install dependencies
+pip install -r requirements.txt
 ```
 
-## Usage
+**Requirements:** Python 3.7+, Node.js (for markdown conversion)
 
-### Initializing the Jira Client
+### 5-Minute Example
 
 ```python
 from dtJira import JiraClient
+import yaml
 
-jira = JiraClient(url='https://your-jira-instance.atlassian.net', username='your-email', password='your-api-token')
+# Connect to Jira Cloud
+client = JiraClient(
+    url="https://your-instance.atlassian.net/",
+    username="your-email@example.com",
+    api_token="your-api-token"
+)
+
+# Load a template
+with open('docs/examples/simple-task-tracker.yaml', 'r') as f:
+    template = yaml.safe_load(f)
+
+# Deploy the template
+project = client.projects().create(
+    name="Task Tracker",
+    key="TASKS",
+    template=template
+)
+
+print(f"✓ Project created: {project.key}")
 ```
 
-### Retrieving Projects
+**That's it!** You now have a fully configured Jira project with:
+- Custom issue types
+- Configured screens and fields
+- Custom workflows
+- Screen schemes and mappings
+
+### Rollback When Needed
 
 ```python
-from dtJira.projects import Project
+# Clean up test projects or recover from failed deployments
+summary = client.projects().rollback_template_deployment(
+    project_key="TASKS",
+    delete_project=True
+)
 
-project = Project(jira.get_project('PROJECT_KEY'), jira)
-print(project.name)
+print(f"✓ Rolled back {len(summary['issue_types_deleted'])} issue types")
+print(f"✓ Project deleted: {summary['project_deleted']}")
 ```
 
-### Managing Issues
+## What Makes dtJira Different?
 
-```python
-from dtJira.issues.types import IssueType
+### Deployment Tracking
 
-issue_type = IssueType(jira.get_issue_type('10001'), jira)
-print(issue_type.name)
-```
+Every deployment automatically creates a tracking file capturing:
+- All resources created (with IDs)
+- Deployment metadata (who, when, what template)
+- Status tracking (in_progress, completed, failed)
+- Error logging
 
-### Handling Workflows
+This enables precise rollback even for partial deployments.
 
-```python
-from dtJira.workflows import Workflow
+### Two Rollback Modes
 
-workflow = Workflow(jira.get_workflow('workflow_name'), jira)
-print(workflow.details)
-```
+1. **Tracking-based** (recommended) - Uses tracking file for exact resource deletion
+2. **Fallback mode** - Searches by project key prefix if no tracking file exists
 
-### Managing Fields
+### Template-Driven Configuration
 
-```python
-from dtJira.fields import Field
-
-field = Field(jira.get_field('customfield_10000'), jira)
-print(field.id)
-```
-
-### Managing Groups
-
-```python
-from dtJira.groups import Group
-
-group = Group(jira.get_group('group_name'), jira)
-print(group.name)
-```
-
-## Deployment via YAML
-
-### Overview
-The `dtJira` module allows deploying Jira project configurations using YAML files. This feature enables users to define issue types, workflows, screen schemes, groups, and fields in a structured manner, which can then be deployed programmatically.
-
-### Example YAML File
-Below is an example YAML file that defines a Jira project setup:
+Define your entire Jira project in YAML:
 
 ```yaml
-name: Template Name
-
-groups:
-  - group-1
-  - group-2
-  - group-3
-
-fields:
-  - name: Outcome
-    description: Description of field
-    type: select
-    options:
-      - value: Approved
-      - value: Approved with Conditions
-      - value: Not Approved
-
-  - name: Rating
-    description: Description of field
-    type: select
-    options:
-      - value: High
-      - value: Medium
-      - value: Low
+name: "IT Help Desk"
 
 issue_types:
-  - name: My Issue
-    description: Description of Issue
+  - name: "Incident"
+    description: "Service interruption"
     subtask: false
 
 workflows:
-  - name: Issue Workflow
-    description: Workflow Issue
+  - name: "Incident Workflow"
     statuses:
-      - name: Request Submitted
-        type: TODO
-      - name: Approved
-        type: DONE
+      - name: "New"
+      - name: "Investigating"
+      - name: "Resolved"
+    transitions:
+      - name: "Start Investigation"
+        from: ["New"]
+        to: "Investigating"
 ```
 
-### Deploying a YAML Configuration
+See [template examples](docs/examples/) for complete templates.
 
-To deploy a YAML configuration file, use the following command:
+## Documentation
 
-```python
-from dtJira import JiraClient
+**📚 [Complete Documentation](docs/README.md)** - Start here for detailed guides
 
-jira = JiraClient(url='https://your-jira-instance.atlassian.net', username='your-email', password='your-api-token')
+### Quick Links
 
-jira.deploy_from_yaml('config.yaml')
+- **[Installation & Setup](docs/README.md#installation--setup)** - Get up and running
+- **[Quick Reference](docs/guides/quick-reference.md)** - Cheat sheet for common operations
+- **[Template Deployment Guide](docs/guides/template-deployment.md)** - Deploy templates with confidence
+- **[Rollback & Recovery Guide](docs/guides/rollback-recovery.md)** - Manage deployments safely
+- **[Template Structure Reference](docs/guides/template-structure.md)** - YAML format documentation
+- **[API Reference](docs/api-reference/)** - Complete API documentation
+- **[Example Templates](docs/examples/)** - Ready-to-use templates
+
+## Use Cases
+
+### Development & Testing
+- Quickly spin up test projects
+- Clean up after integration tests
+- Test configuration changes safely
+
+### Project Standardisation
+- Deploy consistent project configurations
+- Enforce organisational standards
+- Replicate successful project setups
+
+### Migration & Cloning
+- Migrate project configurations
+- Clone project structures
+- Template existing projects for reuse
+
+### Disaster Recovery
+- Rollback failed deployments
+- Recover from partial deployments
+- Audit deployment history
+
+## Example Templates
+
+### Simple Task Tracker
+Perfect for small teams or personal projects.
+```yaml
+# 2 issue types (Task, Bug)
+# Simple 3-state workflow
+# Basic fields and screens
+```
+[View Template](docs/examples/simple-task-tracker.yaml)
+
+### IT Help Desk
+Comprehensive help desk with ITIL-based workflows.
+```yaml
+# 4 issue types (Service Request, Incident, Problem, Change)
+# Custom workflows for each type
+# Help desk specific fields
+```
+[View Template](docs/examples/help-desk-template.yaml)
+
+## Core Modules
+
+| Module | Purpose |
+|--------|---------|
+| **JiraClient** | Main client for Jira Cloud connection |
+| **Projects** | Project CRUD and template deployment |
+| **DeploymentTracker** | Deployment tracking and rollback |
+| **IssueTypes** | Issue type and scheme management |
+| **Screens** | Screen and screen scheme management |
+| **Workflows** | Workflow creation and management |
+| **Fields** | Custom field management |
+| **Groups** | User group management |
+
+## Requirements
+
+### Python Packages
+- `requests` - HTTP client
+- `pyyaml` - YAML parsing
+- `jira` - Atlassian Jira client
+
+### External Dependencies
+- **Node.js** - Required for markdown to ADF conversion (auto-installs `md-to-adf`)
+
+### Jira Requirements
+- Jira Cloud instance
+- Administrator permissions
+- API token for authentication
+
+## API Compatibility
+
+**Jira Cloud REST API v3** - Exclusively uses the latest API version
+
+All endpoints have been verified against the v3 specification:
+- ✓ Project management
+- ✓ Issue types and schemes
+- ✓ Screen and screen schemes
+- ✓ Workflow management
+- ✓ Field operations
+- ✓ User and group management
+
+## Testing
+
+Comprehensive test suite with 79 tests and 77% pass rate.
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src/dtJira
+
+# Run specific test file
+pytest tests/test_projects.py
 ```
 
-This will read the YAML file and apply the specified configuration to the Jira instance.
+See [tests/README.md](tests/README.md) for detailed test documentation.
 
-## Module Structure
+## Project Structure
 
-- `dtJira`
-  - `JiraClient`: Main client for interacting with Jira Cloud.
-  - `fields`: Manages Jira fields and metadata.
-  - `issues`: Handles Jira issue types.
-  - `projects`: Manages project configurations.
-  - `workflows`: Handles Jira workflows and statuses.
-  - `groups`: Manages Jira user groups and permissions.
-
-## Authentication
-
-This library uses Basic Authentication with an API token. You can generate an API token from Atlassian here.
-
-## License
-
-This project is licensed under the MIT License.
+```
+dtJira/
+├── src/dtJira/              # Source code
+│   ├── __init__.py          # JiraClient
+│   ├── projects/            # Project operations
+│   │   ├── __init__.py      # Template deployment
+│   │   └── tracking.py      # Deployment tracking
+│   ├── issues/              # Issue management
+│   ├── screens/             # Screen management
+│   ├── workflows/           # Workflow management
+│   ├── fields/              # Field management
+│   └── groups/              # Group management
+├── docs/                    # Documentation
+│   ├── README.md            # Documentation index
+│   ├── guides/              # User guides
+│   └── examples/            # Example templates
+├── tests/                   # Test suite
+│   ├── test_*.py            # Unit tests
+│   └── README.md            # Test documentation
+└── example_templates/       # Original templates
+```
 
 ## Contributing
 
-Contributions are welcome! Feel free to submit a pull request or raise an issue.
+Contributions are welcome! Please ensure:
+
+- Australian English spelling in all documentation
+- Tests added to `./tests/` for new features
+- Documentation updated in `./docs/`
+- Code follows existing patterns
+
+## Recent Updates
+
+**v0.1.6** (Latest)
+- ✨ Added deployment tracking system
+- ✨ Added tracking-based rollback
+- 📝 Created comprehensive documentation
+- 🐛 Fixed URL concatenation bugs
+- 📚 Added example templates
+
+**v0.1.5**
+- Updated API endpoints to v3
+- Fixed issue type creation
+- Improved error handling
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) file for details.
 
 ## Support
 
-For any issues or feature requests, please open an issue in the repository.
+- **📖 Documentation:** [docs/README.md](docs/README.md)
+- **💡 Examples:** [docs/examples/](docs/examples/)
+- **🐛 Issues:** Open an issue in the repository
+- **📧 Questions:** Check the guides or open a discussion
+
+## Authentication
+
+dtJira uses API token authentication with Jira Cloud.
+
+### Generate an API Token
+
+1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
+2. Click "Create API token"
+3. Give it a label (e.g., "dtJira Development")
+4. Copy and securely store the token
+
+### Security Best Practices
+
+```python
+import os
+from dtJira import JiraClient
+
+# Use environment variables
+client = JiraClient(
+    url=os.environ['JIRA_URL'],
+    username=os.environ['JIRA_USERNAME'],
+    api_token=os.environ['JIRA_API_TOKEN']
+)
+```
+
+**Never** commit API tokens to version control!
+
+## Links
+
+- [Complete Documentation](docs/README.md)
+- [Quick Reference](docs/guides/quick-reference.md)
+- [Template Deployment Guide](docs/guides/template-deployment.md)
+- [Rollback & Recovery Guide](docs/guides/rollback-recovery.md)
+- [Template Structure Reference](docs/guides/template-structure.md)
+- [API Reference](docs/api-reference/)
+- [Example Templates](docs/examples/)
+- [Jira Cloud API Documentation](https://developer.atlassian.com/cloud/jira/platform/rest/v3/)
+
+---
+
+**Ready to get started?** Check out the [documentation](docs/README.md) or try an [example template](docs/examples/)!

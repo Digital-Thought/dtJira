@@ -198,6 +198,22 @@ class Issue:
         return self.detail['fields']['reporter']
 
     def apply_transition(self, transition_name):
+        """
+        Applies a workflow transition to the issue.
+
+        This method retrieves all available transitions for the issue, finds the
+        transition with the specified name, and applies it. The transition moves
+        the issue from its current status to a new status as defined by the
+        workflow.
+
+        :param transition_name: The name of the transition to apply (e.g., "Start
+            Progress", "Resolve", "Close").
+        :type transition_name: str
+        :raises Exception: If no transition with the specified name exists for the
+            current issue status.
+        :raises HTTPError: If the API request fails.
+        :return: None
+        """
         transition_id = None
         response = self.client.get(f'/rest/api/3/issue/{self.key}/transitions')
         response.raise_for_status()
@@ -522,6 +538,20 @@ class Issues:
             return None, None
 
     def get_field(self, issue_type, field_name):
+        """
+        Retrieves field metadata for a specific field name and issue type.
+
+        This method searches the cached field metadata for the specified issue type
+        and returns the field configuration matching the given field name.
+
+        :param issue_type: The issue type to search fields for. Can be either a
+            dictionary with an 'id' key or an object with an id attribute.
+        :type issue_type: dict or IssueType
+        :param field_name: The name of the field to retrieve metadata for.
+        :type field_name: str
+        :return: Field metadata dictionary if found, None otherwise.
+        :rtype: dict or None
+        """
         if isinstance(issue_type, dict):
             issue_type_id = issue_type['id']
         else:
@@ -570,12 +600,44 @@ class Issues:
         return results
 
     def get_issue(self, key):
+        """
+        Retrieves a specific issue by its key.
+
+        Fetches full issue details from the Jira API using the issue key and
+        returns an Issue object.
+
+        :param key: The issue key (e.g., 'PROJ-123').
+        :type key: str
+        :return: An Issue object representing the retrieved issue.
+        :rtype: Issue
+        :raises HTTPError: If the API request fails or the issue doesn't exist.
+        """
         resp = self.client.get(path=f'/rest/api/3/issue/{key}')
         resp.raise_for_status()
         data = resp.json()
         return Issue(data, self.client, data['fields']['issuetype'], self.get_field)
 
     def update_issue(self, issue_key, issue_type, summary=None, description=None, fields={}):
+        """
+        Updates an existing Jira issue with new field values.
+
+        This method allows updating the summary, description, and custom fields of an
+        existing issue. Only provided fields will be updated; others remain unchanged.
+
+        :param issue_key: The key of the issue to update (e.g., 'PROJ-123').
+        :type issue_key: str
+        :param issue_type: The issue type dictionary or object containing the id.
+        :type issue_type: dict or IssueType
+        :param summary: New summary text for the issue. If None, summary is not updated.
+        :type summary: str or None
+        :param description: New description for the issue. Can be a string or
+            TextAreaContent object. If None, description is not updated.
+        :type description: str or TextAreaContent or None
+        :param fields: Dictionary of custom field names and their values to update.
+        :type fields: dict
+        :raises HTTPError: If the API request fails.
+        :return: None
+        """
         payload = {
             "fields": {}
         }

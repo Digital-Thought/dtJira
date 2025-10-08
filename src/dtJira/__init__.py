@@ -275,7 +275,7 @@ class JiraClient:
     def get_me(self):
         """
         Fetches the details of the currently authenticated user. This method sends a GET request
-        to the `/rest/api/2/myself` endpoint of the API to retrieve user-related data. If the
+        to the `/rest/api/3/myself` endpoint of the API to retrieve user-related data. If the
         request is successful, it processes and returns the JSON response. The response typically
         contains user information such as id, name, email, and other details.
 
@@ -285,7 +285,7 @@ class JiraClient:
         :rtype: dict
         :raises HTTPError: If the HTTP request returns an unsuccessful status code.
         """
-        resp = self.get("/rest/api/2/myself")
+        resp = self.get("/rest/api/3/myself")
         resp.raise_for_status()
         return resp.json()
 
@@ -304,7 +304,7 @@ class JiraClient:
         :return: The response object resulting from the POST request.
         :rtype: requests.Response
         """
-        url = f"{self.url}{path}"
+        url = f"{self.url.rstrip('/')}/{path.lstrip('/')}"
         return self.session.post(url, data=json.dumps(data))
 
     def delete(self, path):
@@ -321,7 +321,7 @@ class JiraClient:
         :return: The response object resulting from the DELETE request.
         :rtype: requests.Response
         """
-        url = f"{self.url}{path}"
+        url = f"{self.url.rstrip('/')}/{path.lstrip('/')}"
         return self.session.delete(url)
 
     def get(self, path):
@@ -337,7 +337,7 @@ class JiraClient:
         :return: The response object resulting from the GET request.
         :rtype: requests.Response
         """
-        url = f"{self.url}{path}"
+        url = f"{self.url.rstrip('/')}/{path.lstrip('/')}"
         return self.session.get(url)
 
     def put(self, path, data):
@@ -353,5 +353,5 @@ class JiraClient:
         :return: The server's response to the PUT request.
         :rtype: requests.Response
         """
-        url = f"{self.url}{path}"
+        url = f"{self.url.rstrip('/')}/{path.lstrip('/')}"
         return self.session.put(url, data=json.dumps(data))

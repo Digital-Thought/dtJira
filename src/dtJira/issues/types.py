@@ -330,7 +330,7 @@ class IssueTypes:
             "hierarchyLevel": hierarchy
         }
 
-        resp = self.client.post("/rest/api/2/issuetype", data=payload)
+        resp = self.client.post("/rest/api/3/issuetype", data=payload)
         resp.raise_for_status()
         return IssueType(resp.json(), self.client)
 
@@ -347,7 +347,7 @@ class IssueTypes:
         :type issue_type: IssueType
         :return: None
         """
-        resp = self.client.delete(f"/rest/api/2/issuetype/{issue_type.id}")
+        resp = self.client.delete(f"/rest/api/3/issuetype/{issue_type.id}")
         resp.raise_for_status()
 
     def get_all(self, project_id):
