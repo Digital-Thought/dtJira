@@ -69,6 +69,7 @@ That's it! You now have a fully configured Jira project with custom issue types,
 
 Comprehensive guides for common tasks:
 
+- **[Release History](releases/README.md)** - Version history and release notes
 - **[Template Deployment Guide](guides/template-deployment.md)** - Complete guide to deploying templates
   - Deployment process and workflow
   - Best practices and validation
@@ -552,14 +553,13 @@ print(f"Errors: {tracking['errors']}")
 
 ## Version Information
 
-**Current Version:** 0.1.6
+**Current Version:** 0.1.7
 
-**Recent Changes:**
-- Added deployment tracking system
-- Added tracking-based rollback
-- Created comprehensive documentation
-- Fixed URL concatenation bugs
-- Added example templates
+**Latest Release:** [v0.1.7](releases/v0.1.7.md) - 9 October 2025
+- Fixed deprecated Jira API search endpoint (410 Gone error)
+- Migrated to POST `/rest/api/3/search/jql` endpoint
+
+**[View Complete Release History](releases/README.md)**
 
 **API Compatibility:** Jira Cloud REST API v3
 

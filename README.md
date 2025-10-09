@@ -10,7 +10,7 @@
 
 dtJira is a Python library that simplifies Jira Cloud automation by providing template-based project deployment with automatic tracking and rollback capabilities. Deploy complete Jira projects from YAML templates, including custom issue types, workflows, screens, and configurations.
 
-**Version:** 0.1.6
+**Version:** 0.1.7
 
 ## Key Features
 
@@ -132,6 +132,7 @@ See [template examples](docs/examples/) for complete templates.
 ### Quick Links
 
 - **[Installation & Setup](docs/README.md#installation--setup)** - Get up and running
+- **[Release History](docs/releases/README.md)** - Version history and release notes
 - **[Quick Reference](docs/guides/quick-reference.md)** - Cheat sheet for common operations
 - **[Template Deployment Guide](docs/guides/template-deployment.md)** - Deploy templates with confidence
 - **[Rollback & Recovery Guide](docs/guides/rollback-recovery.md)** - Manage deployments safely
@@ -273,17 +274,19 @@ Contributions are welcome! Please ensure:
 
 ## Recent Updates
 
-**v0.1.6** (Latest)
+**v0.1.7** (Latest - 9 October 2025)
+- 🐛 Fixed deprecated Jira API search endpoint (410 Gone error)
+- ✅ Migrated to POST `/rest/api/3/search/jql` endpoint
+- 📝 Updated to comply with Atlassian API changes
+
+**v0.1.6** (9 October 2025)
 - ✨ Added deployment tracking system
 - ✨ Added tracking-based rollback
-- 📝 Created comprehensive documentation
-- 🐛 Fixed URL concatenation bugs
+- 📝 Created comprehensive documentation (8,300+ lines)
+- ✅ Added 115 unit tests (84% pass rate)
 - 📚 Added example templates
 
-**v0.1.5**
-- Updated API endpoints to v3
-- Fixed issue type creation
-- Improved error handling
+**[View Complete Release History](docs/releases/README.md)**
 
 ## License
 
@@ -326,6 +329,7 @@ client = JiraClient(
 ## Links
 
 - [Complete Documentation](docs/README.md)
+- [Release History](docs/releases/README.md)
 - [Quick Reference](docs/guides/quick-reference.md)
 - [Template Deployment Guide](docs/guides/template-deployment.md)
 - [Rollback & Recovery Guide](docs/guides/rollback-recovery.md)
