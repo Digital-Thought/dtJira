@@ -380,8 +380,10 @@ class Issues:
             project.
         :rtype: list
         """
+        # Use project key instead of ID for better compatibility across Jira instances
+        project_identifier = self.project.key if hasattr(self.project, 'key') and self.project.key else self.project.id
         resp = self.client.get(
-            path=f'/rest/api/3/issue/createmeta/{self.project.id}/issuetypes')
+            path=f'/rest/api/3/issue/createmeta/{project_identifier}/issuetypes')
         resp.raise_for_status()
         return resp.json()['issueTypes']
 
@@ -398,9 +400,11 @@ class Issues:
         :rtype: dict
         """
         meta = {}
+        # Use project key instead of ID for better compatibility across Jira instances
+        project_identifier = self.project.key if hasattr(self.project, 'key') and self.project.key else self.project.id
         for issue_type in self.issue_types:
             resp = self.client.get(
-                path=f'/rest/api/3/issue/createmeta/{self.project.id}/issuetypes/{issue_type['id']}?maxResults=200')
+                path=f'/rest/api/3/issue/createmeta/{project_identifier}/issuetypes/{issue_type['id']}?maxResults=200')
             resp.raise_for_status()
             meta[issue_type['id']] = resp.json()['fields']
         return meta
